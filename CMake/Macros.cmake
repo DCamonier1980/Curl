@@ -30,7 +30,7 @@
 macro(check_include_file_concat _file _variable)
   check_include_files("${CURL_INCLUDES};${_file}" ${_variable})
   if(${_variable})
-    set(CURL_INCLUDES ${CURL_INCLUDES} ${_file})
+    list(APPEND CURL_INCLUDES ${_file})
   endif()
 endmacro()
 
@@ -46,7 +46,7 @@ macro(curl_internal_test _curl_test)
 
     message(STATUS "Performing Test ${_curl_test}")
     try_compile(${_curl_test}
-      ${CMAKE_BINARY_DIR}
+      ${PROJECT_BINARY_DIR}
       "${CMAKE_CURRENT_SOURCE_DIR}/CMake/CurlTests.c"
       CMAKE_FLAGS
         "-DCOMPILE_DEFINITIONS:STRING=-D${_curl_test} ${CURL_TEST_DEFINES} ${_cmake_required_definitions}"

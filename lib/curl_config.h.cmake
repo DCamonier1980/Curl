@@ -55,7 +55,7 @@
 /* disables negotiate authentication */
 #cmakedefine CURL_DISABLE_NEGOTIATE_AUTH 1
 
-/* disables AWS-SIG4 */
+/* disables aws-sigv4 */
 #cmakedefine CURL_DISABLE_AWS 1
 
 /* disables DICT */
@@ -635,7 +635,7 @@
 #cmakedefine NEED_REENTRANT 1
 
 /* cpu-machine-OS */
-#cmakedefine OS ${OS}
+#cmakedefine CURL_OS ${CURL_OS}
 
 /* Name of package */
 #cmakedefine PACKAGE ${PACKAGE}

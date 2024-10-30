@@ -63,13 +63,34 @@ foreach(_cache_var ${_cache_vars})
   endif()
 endforeach()
 
+function(curl_dumpvars)  # Dump all defined variables with their values
+  message("::group::CMake Variable Dump")
+  get_cmake_property(_vars VARIABLES)
+  foreach(_var ${_vars})
+    message("${_var} = ${${_var}}")
+  endforeach()
+  message("::endgroup::")
+endfunction()
+
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake;${CMAKE_MODULE_PATH}")
 include(Utilities)
 include(Macros)
 include(CMakeDependentOption)
 include(CheckCCompilerFlag)
 
-project(CURL C)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/include/curl/curlver.h" _curl_version_h_contents REGEX "#define LIBCURL_VERSION( |_NUM )")
+string(REGEX MATCH "#define LIBCURL_VERSION \"[^\"]*" _curl_version ${_curl_version_h_contents})
+string(REGEX REPLACE "[^\"]+\"" "" _curl_version ${_curl_version})
+string(REGEX MATCH "#define LIBCURL_VERSION_NUM 0x[0-9a-fA-F]+" _curl_version_num ${_curl_version_h_contents})
+string(REGEX REPLACE "[^0]+0x" "" _curl_version_num ${_curl_version_num})
+unset(_curl_version_h_contents)
+
+message(STATUS "curl version=[${_curl_version}]")
+
+string(REGEX REPLACE "([0-9]+\.[0-9]+\.[0-9]+).+" "\\1" _curl_version_sem "${_curl_version}")
+project(CURL
+  VERSION "${_curl_version_sem}"
+  LANGUAGES C)
 
 unset(_target_flags)
 if(APPLE)
@@ -77,6 +98,9 @@ if(APPLE)
 endif()
 if(UNIX)
   set(_target_flags "${_target_flags} UNIX")
+endif()
+if(BSD)
+  set(_target_flags "${_target_flags} BSD")
 endif()
 if(WIN32)
   set(_target_flags "${_target_flags} WIN32")
@@ -110,31 +134,13 @@ if(CMAKE_CROSSCOMPILING)
     "${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
-function(curl_dumpvars)  # Dump all defined variables with their values
-  message("::group::CMake Variable Dump")
-  get_cmake_property(_vars VARIABLES)
-  foreach(_var ${_vars})
-    message("${_var} = ${${_var}}")
-  endforeach()
-  message("::endgroup::")
-endfunction()
-
-file(STRINGS "${CURL_SOURCE_DIR}/include/curl/curlver.h" _curl_version_h_contents REGEX "#define LIBCURL_VERSION( |_NUM )")
-string(REGEX MATCH "#define LIBCURL_VERSION \"[^\"]*" CURL_VERSION ${_curl_version_h_contents})
-string(REGEX REPLACE "[^\"]+\"" "" CURL_VERSION ${CURL_VERSION})
-string(REGEX MATCH "#define LIBCURL_VERSION_NUM 0x[0-9a-fA-F]+" CURL_VERSION_NUM ${_curl_version_h_contents})
-string(REGEX REPLACE "[^0]+0x" "" CURL_VERSION_NUM ${CURL_VERSION_NUM})
-unset(_curl_version_h_contents)
-
-message(STATUS "curl version=[${CURL_VERSION}]")
-
 if(CMAKE_C_COMPILER_TARGET)
-  set(OS "\"${CMAKE_C_COMPILER_TARGET}\"")
+  set(CURL_OS "\"${CMAKE_C_COMPILER_TARGET}\"")
 else()
-  set(OS "\"${CMAKE_SYSTEM_NAME}\"")
+  set(CURL_OS "\"${CMAKE_SYSTEM_NAME}\"")
 endif()
 
-include_directories("${CURL_SOURCE_DIR}/include")
+include_directories("${PROJECT_SOURCE_DIR}/include")
 
 if(NOT DEFINED CMAKE_UNITY_BUILD_BATCH_SIZE)
   set(CMAKE_UNITY_BUILD_BATCH_SIZE 0)
@@ -150,8 +156,8 @@ option(ENABLE_ARES "Enable c-ares support" OFF)
 option(CURL_DISABLE_INSTALL "Disable installation targets" OFF)
 
 if(WIN32)
-  option(CURL_STATIC_CRT "Build libcurl with static CRT on Windows (/MT)" OFF)
-  if(CURL_STATIC_CRT)
+  option(CURL_STATIC_CRT "Build libcurl with static CRT with MSVC (/MT)" OFF)
+  if(CURL_STATIC_CRT AND MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
@@ -197,8 +203,11 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE")  # Required for sendmmsg()
 endif()
 
-option(ENABLE_DEBUG "Enable curl debug features" OFF)
-option(ENABLE_CURLDEBUG "Enable TrackMemory feature" ${ENABLE_DEBUG})
+option(ENABLE_DEBUG "Enable curl debug features (for developing curl itself)" OFF)
+if(ENABLE_DEBUG)
+  message(WARNING "This curl build is Debug-enabled, do not use in production.")
+endif()
+option(ENABLE_CURLDEBUG "Enable TrackMemory debug feature" ${ENABLE_DEBUG})
 
 if(MSVC)
   set(ENABLE_CURLDEBUG OFF)  # FIXME: TrackMemory + MSVC fails test 558 and 1330. Tested with static build, Debug mode.
@@ -285,7 +294,7 @@ option(CURL_DISABLE_KERBEROS_AUTH "Disable Kerberos authentication" OFF)
 mark_as_advanced(CURL_DISABLE_KERBEROS_AUTH)
 option(CURL_DISABLE_NEGOTIATE_AUTH "Disable negotiate authentication" OFF)
 mark_as_advanced(CURL_DISABLE_NEGOTIATE_AUTH)
-option(CURL_DISABLE_AWS "Disable AWS-SIG4" OFF)
+option(CURL_DISABLE_AWS "Disable aws-sigv4" OFF)
 mark_as_advanced(CURL_DISABLE_AWS)
 option(CURL_DISABLE_DICT "Disable DICT" OFF)
 mark_as_advanced(CURL_DISABLE_DICT)
@@ -293,10 +302,6 @@ option(CURL_DISABLE_DOH "Disable DNS-over-HTTPS" OFF)
 mark_as_advanced(CURL_DISABLE_DOH)
 option(CURL_DISABLE_FILE "Disable FILE" OFF)
 mark_as_advanced(CURL_DISABLE_FILE)
-cmake_dependent_option(CURL_DISABLE_FORM_API "Disable form-api"
-  OFF "NOT CURL_DISABLE_MIME"
-  ON)
-mark_as_advanced(CURL_DISABLE_FORM_API)
 option(CURL_DISABLE_FTP "Disable FTP" OFF)
 mark_as_advanced(CURL_DISABLE_FTP)
 option(CURL_DISABLE_GETOPTIONS "Disable curl_easy_options API for existing options to curl_easy_setopt" OFF)
@@ -321,10 +326,14 @@ option(CURL_DISABLE_LIBCURL_OPTION "Disable --libcurl option from the curl tool"
 mark_as_advanced(CURL_DISABLE_LIBCURL_OPTION)
 option(CURL_DISABLE_MIME "Disable MIME support" OFF)
 mark_as_advanced(CURL_DISABLE_MIME)
+cmake_dependent_option(CURL_DISABLE_FORM_API "Disable form-api"
+  OFF "NOT CURL_DISABLE_MIME"
+  ON)
+mark_as_advanced(CURL_DISABLE_FORM_API)
 option(CURL_DISABLE_MQTT "Disable MQTT" OFF)
-mark_as_advanced(CURL_DISABLE_BINDLOCAL)
-option(CURL_DISABLE_BINDLOCAL "Disable local binding support" OFF)
 mark_as_advanced(CURL_DISABLE_MQTT)
+option(CURL_DISABLE_BINDLOCAL "Disable local binding support" OFF)
+mark_as_advanced(CURL_DISABLE_BINDLOCAL)
 option(CURL_DISABLE_NETRC "Disable netrc parser" OFF)
 mark_as_advanced(CURL_DISABLE_NETRC)
 option(CURL_DISABLE_NTLM "Disable NTLM support" OFF)
@@ -350,9 +359,9 @@ mark_as_advanced(CURL_DISABLE_SMB)
 option(CURL_DISABLE_SMTP "Disable SMTP" OFF)
 mark_as_advanced(CURL_DISABLE_SMTP)
 option(CURL_DISABLE_SOCKETPAIR "Disable use of socketpair for curl_multi_poll" OFF)
-option(CURL_DISABLE_WEBSOCKETS "Disable WebSockets" OFF)
-mark_as_advanced(CURL_DISABLE_WEBSOCKETS)
 mark_as_advanced(CURL_DISABLE_SOCKETPAIR)
+option(CURL_DISABLE_WEBSOCKETS "Disable WebSocket" OFF)
+mark_as_advanced(CURL_DISABLE_WEBSOCKETS)
 option(CURL_DISABLE_TELNET "Disable Telnet" OFF)
 mark_as_advanced(CURL_DISABLE_TELNET)
 option(CURL_DISABLE_TFTP "Disable TFTP" OFF)
@@ -463,7 +472,7 @@ include(CheckCSourceCompiles)
 
 # Preload settings on Windows
 if(WIN32)
-  include(${CMAKE_CURRENT_SOURCE_DIR}/CMake/Platforms/WindowsCache.cmake)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/CMake/Platforms/WindowsCache.cmake")
 endif()
 
 if(ENABLE_THREADED_RESOLVER)
@@ -1319,7 +1328,7 @@ if(_curl_ca_bundle_supported)
   set(CURL_CA_BUNDLE "auto" CACHE
     STRING "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
   set(CURL_CA_FALLBACK OFF CACHE BOOL
-    "Set ON to use built-in CA store of TLS backend. Defaults to OFF")
+    "Use built-in CA store of TLS backend. Defaults to OFF")
   set(CURL_CA_PATH "auto" CACHE
     STRING "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
   set(CURL_CA_EMBED "" CACHE
@@ -1408,8 +1417,8 @@ endif()
 
 # Check for header files
 if(WIN32)
-  set(CURL_INCLUDES ${CURL_INCLUDES} "winsock2.h")
-  set(CURL_INCLUDES ${CURL_INCLUDES} "ws2tcpip.h")
+  list(APPEND CURL_INCLUDES "winsock2.h")
+  list(APPEND CURL_INCLUDES "ws2tcpip.h")
 
   if(HAVE_WIN32_WINNT)
     if(HAVE_WIN32_WINNT LESS 0x0501)
@@ -1673,7 +1682,7 @@ endif()
 
 # Include this header to get the type
 cmake_push_check_state()
-set(CMAKE_REQUIRED_INCLUDES "${CURL_SOURCE_DIR}/include")
+set(CMAKE_REQUIRED_INCLUDES "${PROJECT_SOURCE_DIR}/include")
 set(CMAKE_EXTRA_INCLUDE_FILES "curl/system.h")
 check_type_size("curl_off_t" SIZEOF_CURL_OFF_T)
 set(CMAKE_EXTRA_INCLUDE_FILES "curl/curl.h")
@@ -1793,7 +1802,7 @@ if(MSVC)
   endif()
 
   # Use multithreaded compilation on VS 2008+
-  if(MSVC_VERSION GREATER_EQUAL 1500)
+  if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION GREATER_EQUAL 1500)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
   endif()
 endif()
@@ -1815,11 +1824,11 @@ if(CURL_LTO)
   cmake_policy(SET CMP0069 NEW)
 
   include(CheckIPOSupported)
-  check_ipo_supported(RESULT CURL_HAS_LTO OUTPUT CURL_LTO_ERROR LANGUAGES C)
+  check_ipo_supported(RESULT CURL_HAS_LTO OUTPUT _lto_error LANGUAGES C)
   if(CURL_HAS_LTO)
     message(STATUS "LTO supported and enabled")
   else()
-    message(FATAL_ERROR "LTO has been requested, but the compiler does not support it\n${CURL_LTO_ERROR}")
+    message(FATAL_ERROR "LTO has been requested, but the compiler does not support it\n${_lto_error}")
   endif()
 endif()
 
@@ -1828,8 +1837,8 @@ endif()
 # (= regenerate it).
 function(transform_makefile_inc _input_file _output_file)
   file(READ ${_input_file} _makefile_inc_text)
-  string(REPLACE "$(top_srcdir)"   "\${CURL_SOURCE_DIR}" _makefile_inc_text ${_makefile_inc_text})
-  string(REPLACE "$(top_builddir)" "\${CURL_BINARY_DIR}" _makefile_inc_text ${_makefile_inc_text})
+  string(REPLACE "$(top_srcdir)"   "\${PROJECT_SOURCE_DIR}" _makefile_inc_text ${_makefile_inc_text})
+  string(REPLACE "$(top_builddir)" "\${PROJECT_BINARY_DIR}" _makefile_inc_text ${_makefile_inc_text})
 
   string(REGEX REPLACE "\\\\\n" "!π!α!" _makefile_inc_text ${_makefile_inc_text})
   string(REGEX REPLACE "([a-zA-Z_][a-zA-Z0-9_]*)[\t ]*=[\t ]*([^\n]*)" "set(\\1 \\2)" _makefile_inc_text ${_makefile_inc_text})
@@ -1846,19 +1855,22 @@ endfunction()
 
 include(GNUInstallDirs)
 
-set(CURL_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+set(_install_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 set(TARGETS_EXPORT_NAME "${PROJECT_NAME}Targets")
 set(_generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(_project_config "${_generated_dir}/${PROJECT_NAME}Config.cmake")
 set(_version_config "${_generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
 
-cmake_dependent_option(BUILD_TESTING "Build tests"
-  ON "PERL_FOUND;NOT CURL_DISABLE_TESTS"
-  OFF)
+option(BUILD_TESTING "Build tests" ON)
+if(BUILD_TESTING AND PERL_FOUND AND NOT CURL_DISABLE_TESTS)
+  set(CURL_BUILD_TESTING ON)
+else()
+  set(CURL_BUILD_TESTING OFF)
+endif()
 
 if(HAVE_MANUAL_TOOLS)
-  set(CURL_MANPAGE "${CURL_BINARY_DIR}/docs/cmdline-opts/curl.1")
-  set(CURL_ASCIIPAGE "${CURL_BINARY_DIR}/docs/cmdline-opts/curl.txt")
+  set(CURL_MANPAGE "${PROJECT_BINARY_DIR}/docs/cmdline-opts/curl.1")
+  set(CURL_ASCIIPAGE "${PROJECT_BINARY_DIR}/docs/cmdline-opts/curl.txt")
   add_subdirectory(docs)
 endif()
 
@@ -1873,7 +1885,7 @@ if(BUILD_EXAMPLES)
   add_subdirectory(docs/examples)
 endif()
 
-if(BUILD_TESTING)
+if(CURL_BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
@@ -2024,8 +2036,8 @@ if(NOT CURL_DISABLE_INSTALL)
   set(CC                      "${CMAKE_C_COMPILER}")
   # TODO: probably put a -D... options here?
   set(CONFIGURE_OPTIONS       "")
-  set(CURLVERSION             "${CURL_VERSION}")
-  set(VERSIONNUM              "${CURL_VERSION_NUM}")
+  set(CURLVERSION             "${_curl_version}")
+  set(VERSIONNUM              "${_curl_version_num}")
   set(prefix                  "${CMAKE_INSTALL_PREFIX}")
   set(exec_prefix             "\${prefix}")
   if(IS_ABSOLUTE ${CMAKE_INSTALL_INCLUDEDIR})
@@ -2166,9 +2178,9 @@ if(NOT CURL_DISABLE_INSTALL)
   #   SUPPORT_PROTOCOLS
   #   VERSIONNUM
   configure_file(
-    "${CURL_SOURCE_DIR}/curl-config.in"
-    "${CURL_BINARY_DIR}/curl-config" @ONLY)
-  install(FILES "${CURL_BINARY_DIR}/curl-config"
+    "${PROJECT_SOURCE_DIR}/curl-config.in"
+    "${PROJECT_BINARY_DIR}/curl-config" @ONLY)
+  install(FILES "${PROJECT_BINARY_DIR}/curl-config"
     DESTINATION ${CMAKE_INSTALL_BINDIR}
     PERMISSIONS
       OWNER_READ OWNER_WRITE OWNER_EXECUTE
@@ -2197,20 +2209,20 @@ if(NOT CURL_DISABLE_INSTALL)
   #   https://manpages.debian.org/unstable/pkg-config/pkg-config.1.en.html
   #   https://www.msys2.org/docs/pkgconfig/
   configure_file(
-    "${CURL_SOURCE_DIR}/libcurl.pc.in"
-    "${CURL_BINARY_DIR}/libcurl.pc" @ONLY)
-  install(FILES "${CURL_BINARY_DIR}/libcurl.pc"
+    "${PROJECT_SOURCE_DIR}/libcurl.pc.in"
+    "${PROJECT_BINARY_DIR}/libcurl.pc" @ONLY)
+  install(FILES "${PROJECT_BINARY_DIR}/libcurl.pc"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 
   # Install headers
-  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/curl"
+  install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/curl"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h")
 
   include(CMakePackageConfigHelpers)
   write_basic_package_version_file(
     "${_version_config}"
-    VERSION ${CURL_VERSION}
+    VERSION ${_curl_version}
     COMPATIBILITY SameMajorVersion)
   file(READ "${_version_config}" _generated_version_config)
   file(WRITE "${_version_config}" "
@@ -2228,17 +2240,17 @@ if(NOT CURL_DISABLE_INSTALL)
   #   HAVE_LIBZ
   configure_package_config_file("CMake/curl-config.cmake.in"
     "${_project_config}"
-    INSTALL_DESTINATION ${CURL_INSTALL_CMAKE_DIR}
+    INSTALL_DESTINATION ${_install_cmake_dir}
     PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
 
   if(CURL_ENABLE_EXPORT_TARGET)
     install(EXPORT "${TARGETS_EXPORT_NAME}"
       NAMESPACE "${PROJECT_NAME}::"
-      DESTINATION ${CURL_INSTALL_CMAKE_DIR})
+      DESTINATION ${_install_cmake_dir})
   endif()
 
   install(FILES ${_version_config} ${_project_config}
-    DESTINATION ${CURL_INSTALL_CMAKE_DIR})
+    DESTINATION ${_install_cmake_dir})
 
   # Workaround for MSVS10 to avoid the Dialog Hell
   # FIXME: This could be removed with future version of CMake.
@@ -2265,6 +2277,11 @@ if(NOT CURL_DISABLE_INSTALL)
       OWNER_READ OWNER_WRITE OWNER_EXECUTE
       GROUP_READ GROUP_EXECUTE
       WORLD_READ WORLD_EXECUTE)
+
+  # The `-DEV` part is important
+  string(REGEX REPLACE "([0-9]+\.[0-9]+)\.([0-9]+.*)" "\\2" CPACK_PACKAGE_VERSION_PATCH "${_curl_version}")
+  set(CPACK_GENERATOR "TGZ")
+  include(CPack)
 endif()
 
 # Save build info for test runner to pick up and log
@@ -2289,7 +2306,7 @@ buildinfo.compiler: ${CMAKE_C_COMPILER_ID}
 buildinfo.compiler.version: ${CMAKE_C_COMPILER_VERSION}
 buildinfo.sysroot: ${_cmake_sysroot}
 ")
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/buildinfo.txt" "# This is a generated file.  Do not edit.\n${_buildinfo}")
+file(WRITE "${PROJECT_BINARY_DIR}/buildinfo.txt" "# This is a generated file.  Do not edit.\n${_buildinfo}")
 if(NOT "$ENV{CURL_BUILDINFO}$ENV{CURL_CI}$ENV{CI}" STREQUAL "")
   message(STATUS "\n${_buildinfo}")
 endif()

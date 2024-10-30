@@ -1027,7 +1027,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
 {
   int rc;
   const char *parse = NULL;
-  time_t now;
   bool longopt = FALSE;
   bool singleopt = FALSE; /* when true means '-o foo' used '-ofoo' */
   size_t nopts = 0; /* options processed in `flag`*/
@@ -1219,7 +1218,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       config->disallow_username_in_url = toggle;
       break;
     case C_EPSV: /* --epsv */
-      config->disable_epsv = (!toggle) ? TRUE : FALSE;
+      config->disable_epsv = !toggle;
       break;
     case C_DNS_SERVERS: /* --dns-servers */
       if(!curlinfo->ares_num) /* c-ares is needed for this */
@@ -1249,7 +1248,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       }
       break;
     case C_ALPN: /* --alpn */
-      config->noalpn = (!toggle) ? TRUE : FALSE;
+      config->noalpn = !toggle;
       break;
     case C_LIMIT_RATE: /* --limit-rate */
       err = GetSizeParameter(global, nextarg, "rate", &value);
@@ -1372,7 +1371,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       config->disable_eprt = toggle;
       break;
     case C_EPRT: /* --eprt */
-      config->disable_eprt = (!toggle) ? TRUE : FALSE;
+      config->disable_eprt = !toggle;
       break;
     case C_XATTR: /* --xattr */
       config->xattr = toggle;
@@ -1553,7 +1552,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       config->ftp_ssl_reqd = toggle;
       break;
     case C_SESSIONID: /* --sessionid */
-      config->disable_sessionid = (!toggle) ? TRUE : FALSE;
+      config->disable_sessionid = !toggle;
       break;
     case C_FTP_SSL_CONTROL: /* --ftp-ssl-control */
       if(toggle && !feature_ssl)
@@ -1583,7 +1582,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       config->raw = toggle;
       break;
     case C_KEEPALIVE: /* --keepalive */
-      config->nokeepalive = (!toggle) ? TRUE : FALSE;
+      config->nokeepalive = !toggle;
       break;
     case C_KEEPALIVE_TIME: /* --keepalive-time */
       err = str2unum(&config->alivetime, nextarg);
@@ -1917,13 +1916,10 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         err = PARAM_ENGINES_REQUESTED;
       }
       break;
-#ifndef USE_ECH
-    case C_ECH: /* --ech, not implemented by default */
-      err = PARAM_LIBCURL_DOESNT_SUPPORT;
-      break;
-#else
     case C_ECH: /* --ech */
-      if(strlen(nextarg) > 4 && strncasecompare("pn:", nextarg, 3)) {
+      if(!feature_ech)
+        err = PARAM_LIBCURL_DOESNT_SUPPORT;
+      else if(strlen(nextarg) > 4 && strncasecompare("pn:", nextarg, 3)) {
         /* a public_name */
         err = getstr(&config->ech_public, nextarg, DENY_BLANK);
       }
@@ -1967,7 +1963,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       err = getstr(&config->ech, nextarg, DENY_BLANK);
     }
     break;
-#endif
     case C_CAPATH: /* --capath */
       err = getstr(&config->capath, nextarg, DENY_BLANK);
       break;
@@ -2172,7 +2167,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
                    nextarg,
                    &config->mimeroot,
                    &config->mimecurrent,
-                   (cmd == C_FORM_STRING) ? TRUE : FALSE)) /* literal string */
+                   (cmd == C_FORM_STRING))) /* literal string */
         err = PARAM_BAD_USE;
       else if(SetHTTPrequest(config, TOOL_HTTPREQ_MIMEPOST, &config->httpreq))
         err = PARAM_BAD_USE;
@@ -2651,8 +2646,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         nextarg++;
         break;
       }
-      now = time(NULL);
-      config->condtime = (curl_off_t)curl_getdate(nextarg, &now);
+      config->condtime = (curl_off_t)curl_getdate(nextarg, NULL);
       if(-1 == config->condtime) {
         /* now let's see if it is a filename to get the time from instead! */
         rc = getfiletime(nextarg, global, &value);

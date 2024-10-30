@@ -455,15 +455,30 @@ static int parsefmt(const char *format,
         flags |= FLAGS_UNSIGNED;
         break;
       case 'o':
-        type = FORMAT_INT;
-        flags |= FLAGS_OCTAL;
+        if(flags & FLAGS_LONGLONG)
+          type = FORMAT_LONGLONGU;
+        else if(flags & FLAGS_LONG)
+          type = FORMAT_LONGU;
+        else
+          type = FORMAT_INTU;
+        flags |= FLAGS_OCTAL|FLAGS_UNSIGNED;
         break;
       case 'x':
-        type = FORMAT_INTU;
+        if(flags & FLAGS_LONGLONG)
+          type = FORMAT_LONGLONGU;
+        else if(flags & FLAGS_LONG)
+          type = FORMAT_LONGU;
+        else
+          type = FORMAT_INTU;
         flags |= FLAGS_HEX|FLAGS_UNSIGNED;
         break;
       case 'X':
-        type = FORMAT_INTU;
+        if(flags & FLAGS_LONGLONG)
+          type = FORMAT_LONGLONGU;
+        else if(flags & FLAGS_LONG)
+          type = FORMAT_LONGU;
+        else
+          type = FORMAT_INTU;
         flags |= FLAGS_HEX|FLAGS_UPPER|FLAGS_UNSIGNED;
         break;
       case 'c':

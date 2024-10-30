@@ -38,6 +38,8 @@ def pytest_report_header(config):
     env = Env()
     report = [
         f'Testing curl {env.curl_version()}',
+        f'  curl: Features: {env.curl_features_string()}',
+        f'  curl: Protocols: {env.curl_protocols_string()}',
         f'  httpd: {env.httpd_version()}, http:{env.http_port} https:{env.https_port}',
         f'  httpd-proxy: {env.httpd_version()}, http:{env.proxy_port} https:{env.proxys_port}'
     ]
@@ -102,7 +104,7 @@ def httpd(env) -> Generator[Httpd, None, None]:
 @pytest.fixture(scope='package')
 def nghttpx(env, httpd) -> Generator[Nghttpx, None, None]:
     nghttpx = NghttpxQuic(env=env)
-    if env.have_h3():
+    if nghttpx.exists() and (env.have_h3() or nghttpx.https_port > 0):
         nghttpx.clear_logs()
         assert nghttpx.start()
     yield nghttpx
@@ -111,7 +113,7 @@ def nghttpx(env, httpd) -> Generator[Nghttpx, None, None]:
 @pytest.fixture(scope='package')
 def nghttpx_fwd(env, httpd) -> Generator[Nghttpx, None, None]:
     nghttpx = NghttpxFwd(env=env)
-    if env.have_h3():
+    if nghttpx.exists() and (env.have_h3() or nghttpx.https_port > 0):
         nghttpx.clear_logs()
         assert nghttpx.start()
     yield nghttpx

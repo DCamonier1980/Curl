@@ -506,10 +506,10 @@ CURLcode Curl_open(struct Curl_easy **curl)
   CURLcode result;
   struct Curl_easy *data;
 
-  /* Very simple start-up: alloc the struct, init it with zeroes and return */
+  /* simple start-up: alloc the struct, init it with zeroes and return */
   data = calloc(1, sizeof(struct Curl_easy));
   if(!data) {
-    /* this is a very serious error */
+    /* this is a serious error */
     DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
     return CURLE_OUT_OF_MEMORY;
   }
@@ -651,13 +651,13 @@ bool Curl_on_disconnect(struct Curl_easy *data,
 }
 
 /*
- * Curl_xfer_may_multiplex()
+ * xfer_may_multiplex()
  *
  * Return a TRUE, iff the transfer can be done over an (appropriate)
  * multiplexed connection.
  */
-static bool Curl_xfer_may_multiplex(const struct Curl_easy *data,
-                                    const struct connectdata *conn)
+static bool xfer_may_multiplex(const struct Curl_easy *data,
+                               const struct connectdata *conn)
 {
   /* If an HTTP protocol and multiplexing is enabled */
   if((conn->handler->protocol & PROTO_FAMILY_HTTP) &&
@@ -880,16 +880,16 @@ static bool url_match_conn(struct connectdata *conn, void *userdata)
   }
 
   if(needle->localdev || needle->localport) {
-    /* If we are bound to a specific local end (IP+port), we must not
-       reuse a random other one, although if we did not ask for a
-       particular one we can reuse one that was bound.
+    /* If we are bound to a specific local end (IP+port), we must not reuse a
+       random other one, although if we did not ask for a particular one we
+       can reuse one that was bound.
 
        This comparison is a bit rough and too strict. Since the input
-       parameters can be specified in numerous ways and still end up the
-       same it would take a lot of processing to make it really accurate.
-       Instead, this matching will assume that reuses of bound connections
-       will most likely also reuse the exact same binding parameters and
-       missing out a few edge cases should not hurt anyone very much.
+       parameters can be specified in numerous ways and still end up the same
+       it would take a lot of processing to make it really accurate. Instead,
+       this matching will assume that reuses of bound connections will most
+       likely also reuse the exact same binding parameters and missing out a
+       few edge cases should not hurt anyone much.
     */
     if((conn->localport != needle->localport) ||
        (conn->localportrange != needle->localportrange) ||
@@ -1248,7 +1248,7 @@ ConnectionExists(struct Curl_easy *data,
   memset(&match, 0, sizeof(match));
   match.data = data;
   match.needle = needle;
-  match.may_multiplex = Curl_xfer_may_multiplex(data, needle);
+  match.may_multiplex = xfer_may_multiplex(data, needle);
 
 #ifdef USE_NTLM
   match.want_ntlm_http = ((data->state.authhost.want & CURLAUTH_NTLM) &&
@@ -1343,22 +1343,19 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
   /* note that these two proxy bits are now just on what looks to be
      requested, they may be altered down the road */
   conn->bits.proxy = (data->set.str[STRING_PROXY] &&
-                      *data->set.str[STRING_PROXY]) ? TRUE : FALSE;
+                      *data->set.str[STRING_PROXY]);
   conn->bits.httpproxy = (conn->bits.proxy &&
                           (conn->http_proxy.proxytype == CURLPROXY_HTTP ||
                            conn->http_proxy.proxytype == CURLPROXY_HTTP_1_0 ||
-                           IS_HTTPS_PROXY(conn->http_proxy.proxytype))) ?
-    TRUE : FALSE;
-  conn->bits.socksproxy = (conn->bits.proxy &&
-                           !conn->bits.httpproxy) ? TRUE : FALSE;
+                           IS_HTTPS_PROXY(conn->http_proxy.proxytype)));
+  conn->bits.socksproxy = (conn->bits.proxy && !conn->bits.httpproxy);
 
   if(data->set.str[STRING_PRE_PROXY] && *data->set.str[STRING_PRE_PROXY]) {
     conn->bits.proxy = TRUE;
     conn->bits.socksproxy = TRUE;
   }
 
-  conn->bits.proxy_user_passwd =
-    (data->state.aptr.proxyuser) ? TRUE : FALSE;
+  conn->bits.proxy_user_passwd = !!data->state.aptr.proxyuser;
   conn->bits.tunnel_proxy = data->set.tunnel_thru_httpproxy;
 #endif /* CURL_DISABLE_PROXY */
 
@@ -1961,10 +1958,10 @@ static CURLcode setup_range(struct Curl_easy *data)
     else
       s->range = strdup(data->set.str[STRING_SET_RANGE]);
 
-    s->rangestringalloc = (s->range) ? TRUE : FALSE;
-
     if(!s->range)
       return CURLE_OUT_OF_MEMORY;
+
+    s->rangestringalloc = TRUE;
 
     /* tell ourselves to fetch this range */
     s->use_range = TRUE;        /* enable range download */
@@ -2006,8 +2003,8 @@ static CURLcode setup_connection_internals(struct Curl_easy *data,
   }
 
   if(conn->primary.remote_port < 0)
-    /* we check for -1 here since if proxy was detected already, this
-       was very likely already set to the proxy port */
+    /* we check for -1 here since if proxy was detected already, this was
+       likely already set to the proxy port */
     conn->primary.remote_port = p->defport;
 
   /* Now create the destination name */

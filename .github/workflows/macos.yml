@@ -207,7 +207,7 @@ jobs:
             brew unlink openssl
           fi
 
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: 'toolchain versions'
         run: |
@@ -339,9 +339,9 @@ jobs:
           source $HOME/venv/bin/activate
           rm -f $HOME/.curlrc
           if [ -n '${{ matrix.build.configure }}' ]; then
-            make -C bld V=1 test-ci
+            make -C bld V=1 ${{ matrix.build.torture && 'test-torture' || 'test-ci' }}
           else
-            cmake --build bld --target test-ci
+            cmake --build bld --target ${{ matrix.build.torture && 'test-torture' || 'test-ci' }}
           fi
 
       - name: 'build examples'
@@ -419,7 +419,7 @@ jobs:
           echo automake libtool | xargs -Ix -n1 echo brew '"x"' > /tmp/Brewfile
           while [[ $? == 0 ]]; do for i in 1 2 3; do brew update && brew bundle install --no-lock --file /tmp/Brewfile && break 2 || { echo Error: wait to try again; sleep 10; } done; false Too many retries; done
 
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: 'toolchain versions'
         run: |

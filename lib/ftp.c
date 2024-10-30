@@ -302,10 +302,10 @@ static void close_secondarysocket(struct Curl_easy *data)
  * requests on files respond with headers passed to the client/stdout that
  * looked like HTTP ones.
  *
- * This approach is not very elegant, it causes confusion and is error-prone.
- * It is subject for removal at the next (or at least a future) soname bump.
- * Until then you can test the effects of the removal by undefining the
- * following define named CURL_FTP_HTTPSTYLE_HEAD.
+ * This approach is not elegant, it causes confusion and is error-prone. It is
+ * subject for removal at the next (or at least a future) soname bump. Until
+ * then you can test the effects of the removal by undefining the following
+ * define named CURL_FTP_HTTPSTYLE_HEAD.
  */
 #define CURL_FTP_HTTPSTYLE_HEAD 1
 
@@ -2042,10 +2042,10 @@ static CURLcode client_write_header(struct Curl_easy *data,
    * headers from CONNECT should not automatically be part of the
    * output. */
   CURLcode result;
-  int save = data->set.include_header;
+  bool save = data->set.include_header;
   data->set.include_header = TRUE;
   result = Curl_client_write(data, CLIENTWRITE_HEADER, buf, blen);
-  data->set.include_header = save ? TRUE : FALSE;
+  data->set.include_header = save;
   return result;
 }
 
@@ -2454,10 +2454,10 @@ static CURLcode ftp_state_get_resp(struct Curl_easy *data,
        !data->set.ignorecl &&
        (ftp->downloadsize < 1)) {
       /*
-       * It seems directory listings either do not show the size or very
-       * often uses size 0 anyway. ASCII transfers may very well turn out
-       * that the transferred amount of data is not the same as this line
-       * tells, why using this number in those cases only confuses us.
+       * It seems directory listings either do not show the size or often uses
+       * size 0 anyway. ASCII transfers may cause that the transferred amount
+       * of data is not the same as this line tells, why using this number in
+       * those cases only confuses us.
        *
        * Example D above makes this parsing a little tricky */
       char *bytes;
@@ -2793,7 +2793,7 @@ static CURLcode ftp_statemachine(struct Curl_easy *data,
       if(ftpcode/100 == 2)
         /* We have enabled SSL for the data connection! */
         conn->bits.ftp_use_data_ssl =
-          (data->set.use_ssl != CURLUSESSL_CONTROL) ? TRUE : FALSE;
+          (data->set.use_ssl != CURLUSESSL_CONTROL);
       /* FTP servers typically responds with 500 if they decide to reject
          our 'P' request */
       else if(data->set.use_ssl > CURLUSESSL_CONTROL)
@@ -3110,7 +3110,7 @@ static CURLcode ftp_multi_statemach(struct Curl_easy *data,
   /* Check for the state outside of the Curl_socket_check() return code checks
      since at times we are in fact already in this state when this function
      gets called. */
-  *done = (ftpc->state == FTP_STOP) ? TRUE : FALSE;
+  *done = (ftpc->state == FTP_STOP);
 
   return result;
 }

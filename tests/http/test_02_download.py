@@ -168,8 +168,6 @@ class TestDownload:
     @pytest.mark.parametrize("proto", ['http/1.1'])
     def test_02_07b_download_reuse(self, env: Env,
                                    httpd, nghttpx, repeat, proto):
-        if env.curl_uses_lib('wolfssl'):
-            pytest.skip("wolfssl session reuse borked")
         count = 6
         curl = CurlClient(env=env)
         urln = f'https://{env.authority_for(env.domain1, proto)}/data.json?[0-{count-1}]'
@@ -294,7 +292,6 @@ class TestDownload:
                       remote_ip='127.0.0.1')
 
     @pytest.mark.skipif(condition=Env().slow_network, reason="not suitable for slow network tests")
-    @pytest.mark.skipif(condition=Env().ci_run, reason="not suitable for CI runs")
     def test_02_20_h2_small_frames(self, env: Env, httpd, repeat):
         # Test case to reproduce content corruption as observed in
         # https://github.com/curl/curl/issues/10525
@@ -475,12 +472,6 @@ class TestDownload:
     # make extreme parallel h2 upgrades, check invalid conn reuse
     # before protocol switch has happened
     def test_02_25_h2_upgrade_x(self, env: Env, httpd, repeat):
-        # not locally reproducible timeouts with certain SSL libs
-        # Since this test is about connection reuse handling, we skip
-        # it on these builds. Although we would certainly like to understand
-        # why this happens.
-        if env.curl_uses_lib('bearssl'):
-            pytest.skip('CI workflows timeout on bearssl build')
         url = f'http://localhost:{env.http_port}/data-100k'
         client = LocalClient(name='h2-upgrade-extreme', env=env, timeout=15)
         if not client.exists():
@@ -581,7 +572,7 @@ class TestDownload:
         assert r.total_connects == 1, r.dump_logs()
 
     # download parallel with h2 "Upgrade:"
-    def test_02_31_parallel_upgrade(self, env: Env, httpd):
+    def test_02_31_parallel_upgrade(self, env: Env, httpd, nghttpx):
         count = 3
         curl = CurlClient(env=env)
         urln = f'http://{env.domain1}:{env.http_port}/data.json?[0-{count-1}]'
@@ -608,7 +599,6 @@ class TestDownload:
         port = env.port_for(proto)
         if proto != 'h3':
             port = env.nghttpx_https_port
-        # url = f'https://{env.domain1}:{env.port_for(proto)}/{docname}'
         url = f'https://{env.domain1}:{port}/{docname}'
         client = LocalClient(name='hx-download', env=env)
         if not client.exists():

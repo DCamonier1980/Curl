@@ -21,23 +21,21 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-# Find the wolfssl library
+# Find the wolfSSL library
 #
 # Input variables:
 #
-# WOLFSSL_INCLUDE_DIR   The wolfssl include directory
-# WolfSSL_INCLUDE_DIR   The wolfssl include directory (deprecated)
-# WOLFSSL_LIBRARY       Path to wolfssl library
-# WolfSSL_LIBRARY       Path to wolfssl library (deprecated)
+# - `WOLFSSL_INCLUDE_DIR`:   The wolfSSL include directory.
+# - `WOLFSSL_LIBRARY`:       Path to `wolfssl` library.
 #
 # Result variables:
 #
-# WOLFSSL_FOUND         System has wolfssl
-# WOLFSSL_INCLUDE_DIRS  The wolfssl include directories
-# WOLFSSL_LIBRARIES     The wolfssl library names
-# WOLFSSL_LIBRARY_DIRS  The wolfssl library directories
-# WOLFSSL_CFLAGS        Required compiler flags
-# WOLFSSL_VERSION       Version of wolfssl
+# - `WOLFSSL_FOUND`:         System has wolfSSL.
+# - `WOLFSSL_INCLUDE_DIRS`:  The wolfSSL include directories.
+# - `WOLFSSL_LIBRARIES`:     The wolfSSL library names.
+# - `WOLFSSL_LIBRARY_DIRS`:  The wolfSSL library directories.
+# - `WOLFSSL_CFLAGS`:        Required compiler flags.
+# - `WOLFSSL_VERSION`:       Version of wolfSSL.
 
 if(DEFINED WolfSSL_INCLUDE_DIR AND NOT DEFINED WOLFSSL_INCLUDE_DIR)
   message(WARNING "WolfSSL_INCLUDE_DIR is deprecated, use WOLFSSL_INCLUDE_DIR instead.")
@@ -62,6 +60,7 @@ else()
   find_path(WOLFSSL_INCLUDE_DIR NAMES "wolfssl/ssl.h")
   find_library(WOLFSSL_LIBRARY NAMES "wolfssl")
 
+  unset(WOLFSSL_VERSION CACHE)
   if(WOLFSSL_INCLUDE_DIR AND EXISTS "${WOLFSSL_INCLUDE_DIR}/wolfssl/version.h")
     set(_version_regex "#[\t ]*define[\t ]+LIBWOLFSSL_VERSION_STRING[\t ]+\"([^\"]*)\"")
     file(STRINGS "${WOLFSSL_INCLUDE_DIR}/wolfssl/version.h" _version_str REGEX "${_version_regex}")
@@ -93,4 +92,5 @@ if(NOT WIN32)
   if(_math_library)
     list(APPEND WOLFSSL_LIBRARIES "m")  # for log and pow
   endif()
+  mark_as_advanced(_math_library)
 endif()

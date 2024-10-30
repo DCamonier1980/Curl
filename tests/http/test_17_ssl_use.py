@@ -27,9 +27,10 @@
 import json
 import logging
 import os
+import re
 import pytest
 
-from testenv import Env, CurlClient
+from testenv import Env, CurlClient, LocalClient
 
 
 log = logging.getLogger(__name__)
@@ -38,7 +39,8 @@ log = logging.getLogger(__name__)
 class TestSSLUse:
 
     @pytest.fixture(autouse=True, scope='class')
-    def _class_scope(self, env, nghttpx):
+    def _class_scope(self, env, httpd, nghttpx):
+        env.make_data_file(indir=httpd.docs_dir, fname="data-10k", fsize=10*1024)
         if env.have_h3():
             nghttpx.start_if_needed()
 
@@ -118,8 +120,6 @@ class TestSSLUse:
     def test_17_04_double_dot(self, env: Env, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
-        if proto == 'h3' and env.curl_uses_lib('wolfssl'):
-            pytest.skip("wolfSSL HTTP/3 peer verification does not properly check")
         curl = CurlClient(env=env)
         domain = f'{env.domain1}..'
         url = f'https://{env.authority_for(domain, proto)}/curltest/sslinfo'
@@ -143,7 +143,7 @@ class TestSSLUse:
         if env.curl_uses_lib('bearssl'):
             pytest.skip("BearSSL does not support cert verification with IP addresses")
         if env.curl_uses_lib('mbedtls'):
-            pytest.skip("mbedTLS does not support cert verification with IP addresses")
+            pytest.skip("mbedTLS does use IP addresses in SNI")
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
         curl = CurlClient(env=env)
@@ -280,7 +280,15 @@ class TestSSLUse:
         httpd.reload_if_config_changed()
         proto = 'http/1.1'
         run_env = os.environ.copy()
-        run_env['CURL_USE_EARLYDATA'] = '1'
+        if env.curl_uses_lib('gnutls'):
+            # we need to override any default system configuration since
+            # we want to test all protocol versions. Ubuntu (or the GH image)
+            # disable TSL1.0 and TLS1.1 system wide. We do not want.
+            our_config = os.path.join(env.gen_dir, 'gnutls_config')
+            if not os.path.exists(our_config):
+                with open(our_config, 'w') as fd:
+                    fd.write('# empty\n')
+            run_env['GNUTLS_SYSTEM_PRIORITY_FILE'] = our_config
         curl = CurlClient(env=env, run_env=run_env)
         url = f'https://{env.authority_for(env.domain1, proto)}/curltest/sslinfo'
         # SSL backend specifics
@@ -297,10 +305,64 @@ class TestSSLUse:
         # test
         extra_args = [[], ['--tlsv1'], ['--tlsv1.0'], ['--tlsv1.1'], ['--tlsv1.2'], ['--tlsv1.3']][min_ver+2] + \
             [['--tls-max', '1.0'], ['--tls-max', '1.1'], ['--tls-max', '1.2'], ['--tls-max', '1.3'], []][max_ver]
+        extra_args.extend(['--trace-config', 'ssl'])
         r = curl.http_get(url=url, alpn_proto=proto, extra_args=extra_args)
         if max_ver >= min_ver and tls_proto in supported[max(0, min_ver):min(max_ver, 3)+1]:
-            assert r.exit_code == 0 , r.dump_logs()
+            assert r.exit_code == 0, f'extra_args={extra_args}\n{r.dump_logs()}'
             assert r.json['HTTPS'] == 'on', r.dump_logs()
             assert r.json['SSL_PROTOCOL'] == tls_proto, r.dump_logs()
         else:
-            assert r.exit_code != 0, r.dump_logs()
+            assert r.exit_code != 0, f'extra_args={extra_args}\n{r.dump_logs()}'
+
+    def test_17_10_h3_session_reuse(self, env: Env, httpd, nghttpx):
+        if not env.have_h3():
+            pytest.skip("h3 not supported")
+        if not env.curl_uses_lib('quictls') and \
+            not env.curl_uses_lib('gnutls') and \
+            not env.curl_uses_lib('wolfssl'):
+            pytest.skip("QUIC session reuse not implemented")
+        count = 2
+        docname = 'data-10k'
+        url = f'https://localhost:{env.https_port}/{docname}'
+        client = LocalClient(name='hx-download', env=env)
+        if not client.exists():
+            pytest.skip(f'example client not built: {client.name}')
+        r = client.run(args=[
+             '-n', f'{count}',
+             '-f',  # forbid reuse of connections
+             '-r', f'{env.domain1}:{env.port_for("h3")}:127.0.0.1',
+             '-V', 'h3', url
+        ])
+        r.check_exit_code(0)
+        # check that TLS session was reused as expected
+        reused_session = False
+        for line in r.trace_lines:
+            m = re.match(r'\[1-1] \* SSL reusing session.*', line)
+            if m:
+                reused_session = True
+        assert reused_session, f'{r}\n{r.dump_logs()}'
+
+    # use host name server has no certificate for
+    @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
+    def test_17_11_wrong_host(self, env: Env, proto):
+        if proto == 'h3' and not env.have_h3():
+            pytest.skip("h3 not supported")
+        curl = CurlClient(env=env)
+        domain = f'insecure.{env.tld}'
+        url = f'https://{domain}:{env.port_for(proto)}/curltest/sslinfo'
+        r = curl.http_get(url=url, alpn_proto=proto)
+        assert r.exit_code == 60, f'{r}'
+
+    # use host name server has no cert for with --insecure
+    @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
+    def test_17_12_insecure(self, env: Env, proto):
+        if proto == 'h3' and not env.have_h3():
+            pytest.skip("h3 not supported")
+        curl = CurlClient(env=env)
+        domain = f'insecure.{env.tld}'
+        url = f'https://{domain}:{env.port_for(proto)}/curltest/sslinfo'
+        r = curl.http_get(url=url, alpn_proto=proto, extra_args=[
+            '--insecure'
+        ])
+        assert r.exit_code == 0, f'{r}'
+        assert r.json, f'{r}'

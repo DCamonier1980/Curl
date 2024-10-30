@@ -71,7 +71,9 @@ class EnvConfig:
             'version': '',
             'os': '',
             'fullname': '',
+            'features_string': '',
             'features': [],
+            'protocols_string': '',
             'protocols': [],
             'libs': [],
             'lib_versions': [],
@@ -95,13 +97,15 @@ class EnvConfig:
                         lib.lower() for lib in m.group('libs').split(' ')
                     ]
                     self.curl_props['libs'] = [
-                        re.sub(r'/.*', '', lib) for lib in self.curl_props['lib_versions']
+                        re.sub(r'/[a-z0-9.-]*', '', lib) for lib in self.curl_props['lib_versions']
                     ]
             if line.startswith('Features: '):
+                self.curl_props['features_string'] = line[10:]
                 self.curl_props['features'] = [
                     feat.lower() for feat in line[10:].split(' ')
                 ]
             if line.startswith('Protocols: '):
+                self.curl_props['protocols_string'] = line[11:]
                 self.curl_props['protocols'] = [
                     prot.lower() for prot in line[11:].split(' ')
                 ]
@@ -303,7 +307,7 @@ class Env:
 
     @staticmethod
     def have_ssl_curl() -> bool:
-        return 'ssl' in Env.CONFIG.curl_props['features']
+        return Env.curl_has_feature('ssl') or Env.curl_has_feature('multissl')
 
     @staticmethod
     def have_h2_curl() -> bool:
@@ -324,8 +328,16 @@ class Env:
         return False
 
     @staticmethod
+    def curl_features_string() -> str:
+        return Env.CONFIG.curl_props['features_string']
+
+    @staticmethod
     def curl_has_feature(feature: str) -> bool:
         return feature.lower() in Env.CONFIG.curl_props['features']
+
+    @staticmethod
+    def curl_protocols_string() -> str:
+        return Env.CONFIG.curl_props['protocols_string']
 
     @staticmethod
     def curl_has_protocol(protocol: str) -> bool:
@@ -459,6 +471,10 @@ class Env:
     @property
     def htdocs_dir(self) -> str:
         return self.CONFIG.htdocs_dir
+
+    @property
+    def tld(self) -> str:
+        return self.CONFIG.tld
 
     @property
     def domain1(self) -> str:

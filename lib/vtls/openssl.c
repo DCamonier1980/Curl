@@ -247,7 +247,7 @@
 #elif defined(OPENSSL_IS_AWSLC)
 #define OSSL_PACKAGE "AWS-LC"
 #else
-# if defined(USE_NGTCP2) && defined(USE_NGHTTP3)
+# if (defined(USE_NGTCP2) && defined(USE_NGHTTP3)) || defined(USE_MSH3)
 #   define OSSL_PACKAGE "quictls"
 # else
 #   define OSSL_PACKAGE "OpenSSL"
@@ -1015,7 +1015,7 @@ static int passwd_callback(char *buf, int num, int encrypting,
  */
 static bool rand_enough(void)
 {
-  return (0 != RAND_status()) ? TRUE : FALSE;
+  return (0 != RAND_status());
 }
 
 static CURLcode ossl_seed(struct Curl_easy *data)
@@ -1935,8 +1935,9 @@ static CURLcode ossl_shutdown(struct Curl_cfilter *cf,
 
   /* SSL should now have started the shutdown from our side. Since it
    * was not complete, we are lacking the close notify from the server. */
-  if(send_shutdown) {
+  if(send_shutdown && !(SSL_get_shutdown(octx->ssl) & SSL_SENT_SHUTDOWN)) {
     ERR_clear_error();
+    CURL_TRC_CF(data, cf, "send SSL close notify");
     if(SSL_shutdown(octx->ssl) == 1) {
       CURL_TRC_CF(data, cf, "SSL shutdown finished");
       *done = TRUE;
@@ -1961,7 +1962,10 @@ static CURLcode ossl_shutdown(struct Curl_cfilter *cf,
   err = SSL_get_error(octx->ssl, nread);
   switch(err) {
   case SSL_ERROR_ZERO_RETURN: /* no more data */
-    CURL_TRC_CF(data, cf, "SSL shutdown not received, but closed");
+    if(SSL_shutdown(octx->ssl) == 1)
+      CURL_TRC_CF(data, cf, "SSL shutdown finished");
+    else
+      CURL_TRC_CF(data, cf, "SSL shutdown not received, but closed");
     *done = TRUE;
     break;
   case SSL_ERROR_NONE: /* just did not get anything */
@@ -2679,9 +2683,7 @@ static void ossl_trace(int direction, int ssl_ver, int content_type,
                         "%s (%s), %s, %s (%d):\n",
                         verstr, direction ? "OUT" : "IN",
                         tls_rt_name, msg_name, msg_type);
-    if(0 <= txt_len && (unsigned)txt_len < sizeof(ssl_buf)) {
-      Curl_debug(data, CURLINFO_TEXT, ssl_buf, (size_t)txt_len);
-    }
+    Curl_debug(data, CURLINFO_TEXT, ssl_buf, (size_t)txt_len);
   }
 
   Curl_debug(data, (direction == 1) ? CURLINFO_SSL_DATA_OUT :
@@ -3970,7 +3972,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
 #endif
 
   octx->reused_session = FALSE;
-  if(ssl_config->primary.cache_session && transport == TRNSPRT_TCP) {
+  if(ssl_config->primary.cache_session) {
     Curl_ssl_sessionid_lock(data);
     if(!Curl_ssl_getsessionid(cf, data, peer, (void **)&der_sessionid,
       &der_sessionid_size, NULL)) {
@@ -5130,9 +5132,8 @@ static CURLcode ossl_get_channel_binding(struct Curl_easy *data, int sockindex,
   } while(cf->next);
 
   if(!octx) {
-    failf(data,
-          "Failed to find SSL backend for endpoint");
-    return CURLE_SSL_ENGINE_INITFAILED;
+    failf(data, "Failed to find the SSL filter");
+    return CURLE_BAD_FUNCTION_ARGUMENT;
   }
 
   cert = SSL_get1_peer_certificate(octx->ssl);
