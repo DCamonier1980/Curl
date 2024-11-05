@@ -1355,10 +1355,6 @@ if test "$HAVE_GETHOSTBYNAME" != "1"; then
   )
 fi
 
-if test "$HAVE_GETHOSTBYNAME" != "1"; then
-  AC_MSG_ERROR([couldn't find libraries for gethostbyname()])
-fi
-
 CURL_CHECK_LIBS_CONNECT
 
 CURL_NETWORK_LIBS=$LIBS
@@ -5175,7 +5171,7 @@ if test "x$CURL_DISABLE_HTTP" != "x1"; then
         -o "x$MBEDTLS_ENABLED" = "x1"; then
       SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
       AC_MSG_RESULT([yes])
-    elif test "x$WOLFSSL_ENABLED" = "x1" -a "x$WOLFSSL_FULL_BIO" = "x1"; then
+    elif test "x$WOLFSSL_ENABLED" = "x1" -a "x$WOLFSSL_BIO" = "x1"; then
       SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
       AC_MSG_RESULT([yes])
     else
