@@ -88,6 +88,8 @@ char *curlx_convert_wchar_to_UTF8(const wchar_t *str_w)
 
 #if defined(USE_WIN32_LARGE_FILES) || defined(USE_WIN32_SMALL_FILES)
 
+/* GetFullPathNameW declaration for mingw-w64 UWP build */
+WINBASEAPI DWORD WINAPI GetFullPathNameW(LPCWSTR, DWORD, LPWSTR, LPWSTR *);
 
 /* Fix excessive paths (paths that exceed MAX_PATH length of 260).
  *
