@@ -129,7 +129,7 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
 
   /* workaround for missing GetFullPathNameW declaration in some builds */
   pGetFullPathNameW = CURLX_FUNCTION_CAST(GETFULLPATHNAMEW_FN,
-    (GetProcAddress(GetModuleHandleA("kernel32"), "GetFullPathNameW")));
+    (GetProcAddress(GetModuleHandleW(L"kernel32"), "GetFullPathNameW")));
   if(!pGetFullPathNameW)
     goto cleanup;
 
