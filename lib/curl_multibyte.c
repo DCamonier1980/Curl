@@ -35,6 +35,7 @@
 #if defined(_WIN32)
 
 #include "curl_multibyte.h"
+#include "warnless.h"
 
 /*
  * MultiByte conversions using Windows kernel32 library.
@@ -88,9 +89,6 @@ char *curlx_convert_wchar_to_UTF8(const wchar_t *str_w)
 
 #if defined(USE_WIN32_LARGE_FILES) || defined(USE_WIN32_SMALL_FILES)
 
-/* GetFullPathNameW declaration for mingw-w64 UWP build */
-WINBASEAPI DWORD WINAPI GetFullPathNameW(LPCWSTR, DWORD, LPWSTR, LPWSTR *);
-
 /* Fix excessive paths (paths that exceed MAX_PATH length of 260).
  *
  * This is a helper function to fix paths that would exceed the MAX_PATH
@@ -118,12 +116,22 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
   /* MS documented "approximate" limit for the maximum path length */
   const size_t max_path_len = 32767;
 
+  typedef DWORD (APIENTRY *GETFULLPATHNAMEW_FN)
+    (LPCWSTR, DWORD, LPWSTR, LPWSTR *);
+  GETFULLPATHNAMEW_FN pGetFullPathNameW = NULL;
+
 #ifndef _UNICODE
   wchar_t *ibuf = NULL;
   char *obuf = NULL;
 #endif
 
   *out = NULL;
+
+  /* workaround for missing GetFullPathNameW declaration in some builds */
+  pGetFullPathNameW = CURLX_FUNCTION_CAST(GETFULLPATHNAMEW_FN,
+    (GetProcAddress(GetModuleHandleA("kernel32"), "GetFullPathNameW")));
+  if(!pGetFullPathNameW)
+    goto cleanup;
 
   /* skip paths already normalized */
   if(!_tcsncmp(in, _T("\\\\?\\"), 4))
@@ -149,7 +157,7 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
   /* GetFullPathNameW returns the normalized full path in unicode. It converts
      forward slashes to backslashes, processes .. to remove directory segments,
      etc. Unlike GetFullPathNameA it can process paths that exceed MAX_PATH. */
-  needed = (size_t)GetFullPathNameW(in_w, 0, NULL, NULL);
+  needed = (size_t)pGetFullPathNameW(in_w, 0, NULL, NULL);
   if(!needed || needed > max_path_len)
     goto cleanup;
   /* skip paths that are not excessive and do not need modification */
