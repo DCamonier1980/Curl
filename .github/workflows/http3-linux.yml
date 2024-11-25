@@ -47,7 +47,7 @@ env:
   # handled in renovate.json
   quictls-version: 3.3.0
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver registryUrl=https://github.com
-  gnutls-version: 3.8.7
+  gnutls-version: 3.8.8
   wolfssl-version: master
   # renovate: datasource=github-tags depName=ngtcp2/nghttp3 versioning=semver registryUrl=https://github.com
   nghttp3-version: 1.6.0
@@ -175,7 +175,7 @@ jobs:
           cd $HOME
           git clone --quiet --depth=1 -b openssl-${{ env.quictls-version }}-quic1 https://github.com/quictls/openssl quictls
           cd quictls
-          ./config no-deprecated --prefix=$PWD/build --libdir=lib
+          ./config no-deprecated --prefix=$PWD/build --libdir=lib no-makedepend no-apps no-docs no-tests
           make
           make -j1 install_sw
         name: 'build quictls'
@@ -206,7 +206,8 @@ jobs:
           git fetch origin --depth=1 ${{ env.wolfssl-version }}
           git checkout ${{ env.wolfssl-version }}
           ./autogen.sh
-          ./configure --disable-dependency-tracking --enable-all --enable-quic --prefix=$PWD/build
+          ./configure --disable-dependency-tracking --enable-all --enable-quic \
+            --disable-benchmark --disable-crypttests --disable-examples --prefix=$PWD/build
           make
           make install
         name: 'build wolfssl'
@@ -282,6 +283,7 @@ jobs:
               --with-ngtcp2=$HOME/ngtcp2/build --enable-warnings --enable-werror --enable-debug
               --with-test-nghttpx="$HOME/nghttp2/build/bin/nghttpx"
               --with-wolfssl=$HOME/wolfssl/build
+              --enable-httpsrr --enable-ech
 
           - name: wolfssl
             PKG_CONFIG_PATH: '$HOME/wolfssl/build/lib/pkgconfig:$HOME/nghttp3/build/lib/pkgconfig:$HOME/ngtcp2/build/lib/pkgconfig:$HOME/nghttp2/build/lib/pkgconfig'
@@ -289,6 +291,7 @@ jobs:
               -DCURL_USE_WOLFSSL=ON -DUSE_NGTCP2=ON -DENABLE_DEBUG=ON
               -DTEST_NGHTTPX="$HOME/nghttp2/build/bin/nghttpx"
               -DHTTPD_NGHTTPX="$HOME/nghttp2/build/bin/nghttpx"
+              -DUSE_HTTPSRR=ON -DUSE_ECH=ON
 
           - name: openssl-quic
             PKG_CONFIG_PATH: '$HOME/openssl/build/lib64/pkgconfig'
@@ -328,6 +331,7 @@ jobs:
             libtasn1-6-dev libidn2-0-dev gawk gperf libtss2-dev dns-root-data bison gtk-doc-tools \
             texinfo texlive texlive-extra-utils autopoint libev-dev \
             apache2 apache2-dev libnghttp2-dev vsftpd
+          python3 -m venv $HOME/venv
           echo 'CC=gcc-12' >> $GITHUB_ENV
           echo 'CXX=g++-12' >> $GITHUB_ENV
         name: 'install prereqs'
@@ -410,7 +414,8 @@ jobs:
         run: |
           git clone --quiet --depth=1 -b openssl-${{ env.openssl-version }} https://github.com/openssl/openssl
           cd openssl
-          ./config --prefix=$HOME/openssl/build
+          ./config --prefix=$HOME/openssl/build no-makedepend no-apps no-docs no-tests
+          make
           make -j1 install_sw
           cat exporters/openssl.pc
 
@@ -501,12 +506,14 @@ jobs:
 
       - name: 'install test prereqs'
         run: |
-          sudo python3 -m pip install --break-system-packages -r tests/requirements.txt
+          source $HOME/venv/bin/activate
+          python3 -m pip install -r tests/requirements.txt
 
       - name: 'run tests'
         env:
           TFLAGS: "${{ matrix.build.tflags }}"
         run: |
+          source $HOME/venv/bin/activate
           if [ -n '${{ matrix.build.generate }}' ]; then
             cmake --build . --verbose --target test-ci
           else
@@ -515,13 +522,15 @@ jobs:
 
       - name: 'install pytest prereqs'
         run: |
-          sudo python3 -m pip install --break-system-packages -r tests/http/requirements.txt
+          source $HOME/venv/bin/activate
+          python3 -m pip install -r tests/http/requirements.txt
 
       - name: 'run pytest'
         env:
           TFLAGS: "${{ matrix.build.tflags }}"
           CURL_CI: github
         run: |
+          source $HOME/venv/bin/activate
           if [ -n '${{ matrix.build.generate }}' ]; then
             cmake --build . --verbose --target curl-pytest-ci
           else
