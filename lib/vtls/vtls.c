@@ -541,7 +541,10 @@ bool Curl_ssl_getsessionid(struct Curl_cfilter *cf,
                            const struct ssl_peer *peer,
                            void **ssl_sessionid,
                            size_t *idsize, /* set 0 if unknown */
-                           char **palpn)
+                           char **palpn,
+                           size_t *earlydata_max,
+                           unsigned char **quic_tp,
+                           size_t *quic_tp_len)
 {
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
@@ -553,6 +556,12 @@ bool Curl_ssl_getsessionid(struct Curl_cfilter *cf,
   *ssl_sessionid = NULL;
   if(palpn)
     *palpn = NULL;
+  if(earlydata_max)
+    *earlydata_max = 0;
+  if(quic_tp)
+    *quic_tp = NULL;
+  if(quic_tp_len)
+    *quic_tp_len = 0;
   if(!ssl_config)
     return TRUE;
 
@@ -593,6 +602,12 @@ bool Curl_ssl_getsessionid(struct Curl_cfilter *cf,
         *idsize = check->idsize;
       if(palpn)
         *palpn = check->alpn;
+      if(earlydata_max)
+        *earlydata_max = check->earlydata_max;
+      if(quic_tp && quic_tp_len) {
+        *quic_tp = check->quic_tp;
+        *quic_tp_len = check->quic_tp_len;
+      }
       no_match = FALSE;
       break;
     }
@@ -624,6 +639,8 @@ void Curl_ssl_kill_session(struct Curl_ssl_session *session)
     Curl_safefree(session->name);
     Curl_safefree(session->conn_to_host);
     Curl_safefree(session->alpn);
+    Curl_safefree(session->quic_tp);
+    session->quic_tp_len = 0;
   }
 }
 
@@ -650,7 +667,9 @@ CURLcode Curl_ssl_set_sessionid(struct Curl_cfilter *cf,
                                 const char *alpn,
                                 void *ssl_sessionid,
                                 size_t idsize,
-                                Curl_ssl_sessionid_dtor *sessionid_free_cb)
+                                Curl_ssl_sessionid_dtor *sessionid_free_cb,
+                                size_t earlydata_max,
+                                unsigned char *quic_tp, size_t quic_tp_len)
 {
   struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
@@ -664,6 +683,7 @@ CURLcode Curl_ssl_set_sessionid(struct Curl_cfilter *cf,
   long *general_age;
   void *old_sessionid;
   size_t old_size;
+  unsigned char *clone_quic_tp = NULL;
   CURLcode result = CURLE_OUT_OF_MEMORY;
 
   DEBUGASSERT(ssl_sessionid);
@@ -674,7 +694,8 @@ CURLcode Curl_ssl_set_sessionid(struct Curl_cfilter *cf,
     return CURLE_OK;
   }
 
-  if(!Curl_ssl_getsessionid(cf, data, peer, &old_sessionid, &old_size, NULL)) {
+  if(!Curl_ssl_getsessionid(cf, data, peer, &old_sessionid, &old_size,
+                            NULL, NULL, NULL, NULL)) {
     if((old_size == idsize) &&
        ((old_sessionid == ssl_sessionid) ||
         (idsize && !memcmp(old_sessionid, ssl_sessionid, idsize)))) {
@@ -703,6 +724,12 @@ CURLcode Curl_ssl_set_sessionid(struct Curl_cfilter *cf,
   clone_alpn = alpn ? strdup(alpn) : NULL;
   if(alpn && !clone_alpn)
     goto out;
+
+  if(quic_tp && quic_tp_len) {
+    clone_quic_tp = Curl_memdup0((char *)quic_tp, quic_tp_len);
+    if(!clone_quic_tp)
+      goto out;
+  }
 
   if(cf->conn->bits.conn_to_port)
     conn_to_port = cf->conn->conn_to_port;
@@ -754,6 +781,10 @@ CURLcode Curl_ssl_set_sessionid(struct Curl_cfilter *cf,
   store->conn_to_port = conn_to_port; /* connect to port number */
   store->alpn = clone_alpn;
   clone_alpn = NULL;
+  store->earlydata_max = earlydata_max;
+  store->quic_tp = clone_quic_tp;
+  clone_quic_tp = NULL;
+  store->quic_tp_len = store->quic_tp ? quic_tp_len : 0;
   /* port number */
   store->remote_port = peer->port;
   store->scheme = cf->conn->handler->scheme;
@@ -765,6 +796,7 @@ out:
   free(clone_host);
   free(clone_conn_to_host);
   free(clone_alpn);
+  free(clone_quic_tp);
   if(result) {
     failf(data, "Failed to add Session ID to cache for %s://%s:%d [%s]",
           store->scheme, store->name, store->remote_port,
