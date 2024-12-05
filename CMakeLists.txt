@@ -108,6 +108,9 @@ endif()
 if(WIN32)
   set(_target_flags "${_target_flags} WIN32")
 endif()
+if(WINDOWS_STORE)
+  set(_target_flags "${_target_flags} UWP")
+endif()
 if(CYGWIN)
   set(_target_flags "${_target_flags} CYGWIN")
 endif()
@@ -178,6 +181,9 @@ if(WIN32)
   endif()
 
   option(ENABLE_UNICODE "Use the Unicode version of the Windows API functions" OFF)
+  if(WINDOWS_STORE)
+    set(ENABLE_UNICODE ON)
+  endif()
   if(ENABLE_UNICODE)
     add_definitions("-DUNICODE" "-D_UNICODE")
     if(MINGW)
@@ -864,7 +870,7 @@ if(USE_OPENSSL OR USE_WOLFSSL)
   endif()
 endif()
 
-option(USE_HTTPSRR "Enable HTTPS RR support for ECH (experimental)" OFF)
+option(USE_HTTPSRR "Enable HTTPS RR support" OFF)
 option(USE_ECH "Enable ECH support" OFF)
 if(USE_ECH)
   if(USE_OPENSSL OR USE_WOLFSSL)
@@ -2302,7 +2308,7 @@ if(NOT CURL_DISABLE_INSTALL)
     configure_file(
       "${CMAKE_CURRENT_SOURCE_DIR}/CMake/cmake_uninstall.cmake.in"
       "${CMAKE_CURRENT_BINARY_DIR}/CMake/cmake_uninstall.cmake"
-      IMMEDIATE @ONLY)
+      @ONLY)
 
     add_custom_target(curl_uninstall
       COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/CMake/cmake_uninstall.cmake")

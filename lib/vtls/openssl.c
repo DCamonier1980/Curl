@@ -1152,9 +1152,8 @@ static bool is_pkcs11_uri(const char *string)
 
 static CURLcode ossl_set_engine(struct Curl_easy *data, const char *engine);
 
-static int
-SSL_CTX_use_certificate_blob(SSL_CTX *ctx, const struct curl_blob *blob,
-                             int type, const char *key_passwd)
+static int use_certificate_blob(SSL_CTX *ctx, const struct curl_blob *blob,
+                                int type, const char *key_passwd)
 {
   int ret = 0;
   X509 *x = NULL;
@@ -1190,9 +1189,8 @@ end:
   return ret;
 }
 
-static int
-SSL_CTX_use_PrivateKey_blob(SSL_CTX *ctx, const struct curl_blob *blob,
-                            int type, const char *key_passwd)
+static int use_privatekey_blob(SSL_CTX *ctx, const struct curl_blob *blob,
+                               int type, const char *key_passwd)
 {
   int ret = 0;
   EVP_PKEY *pkey = NULL;
@@ -1205,14 +1203,12 @@ SSL_CTX_use_PrivateKey_blob(SSL_CTX *ctx, const struct curl_blob *blob,
                                    (void *)key_passwd);
   else if(type == SSL_FILETYPE_ASN1)
     pkey = d2i_PrivateKey_bio(in, NULL);
-  else {
-    ret = 0;
+  else
     goto end;
-  }
-  if(!pkey) {
-    ret = 0;
+
+  if(!pkey)
     goto end;
-  }
+
   ret = SSL_CTX_use_PrivateKey(ctx, pkey);
   EVP_PKEY_free(pkey);
 end:
@@ -1221,8 +1217,8 @@ end:
 }
 
 static int
-SSL_CTX_use_certificate_chain_blob(SSL_CTX *ctx, const struct curl_blob *blob,
-                                   const char *key_passwd)
+use_certificate_chain_blob(SSL_CTX *ctx, const struct curl_blob *blob,
+                           const char *key_passwd)
 {
 /* SSL_CTX_add1_chain_cert introduced in OpenSSL 1.0.2 */
 #if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && /* OpenSSL 1.0.2 or later */ \
@@ -1239,11 +1235,8 @@ SSL_CTX_use_certificate_chain_blob(SSL_CTX *ctx, const struct curl_blob *blob,
 
   x = PEM_read_bio_X509_AUX(in, NULL,
                             passwd_callback, (void *)key_passwd);
-
-  if(!x) {
-    ret = 0;
+  if(!x)
     goto end;
-  }
 
   ret = SSL_CTX_use_certificate(ctx, x);
 
@@ -1324,7 +1317,7 @@ int cert_stuff(struct Curl_easy *data,
     case SSL_FILETYPE_PEM:
       /* SSL_CTX_use_certificate_chain_file() only works on PEM files */
       cert_use_result = cert_blob ?
-        SSL_CTX_use_certificate_chain_blob(ctx, cert_blob, key_passwd) :
+        use_certificate_chain_blob(ctx, cert_blob, key_passwd) :
         SSL_CTX_use_certificate_chain_file(ctx, cert_file);
       if(cert_use_result != 1) {
         failf(data,
@@ -1344,8 +1337,7 @@ int cert_stuff(struct Curl_easy *data,
          ASN1 files. */
 
       cert_use_result = cert_blob ?
-        SSL_CTX_use_certificate_blob(ctx, cert_blob,
-                                     file_type, key_passwd) :
+        use_certificate_blob(ctx, cert_blob, file_type, key_passwd) :
       SSL_CTX_use_certificate_file(ctx, cert_file, file_type);
       if(cert_use_result != 1) {
         failf(data,
@@ -1554,7 +1546,7 @@ fail:
       FALLTHROUGH();
     case SSL_FILETYPE_ASN1:
       cert_use_result = key_blob ?
-        SSL_CTX_use_PrivateKey_blob(ctx, key_blob, file_type, key_passwd) :
+        use_privatekey_blob(ctx, key_blob, file_type, key_passwd) :
       SSL_CTX_use_PrivateKey_file(ctx, key_file, file_type);
       if(cert_use_result != 1) {
         failf(data, "unable to set private key file: '%s' type %s",
@@ -4220,14 +4212,11 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
         lerr = SSL_get_verify_result(octx->ssl);
         if(lerr != X509_V_OK) {
           ssl_config->certverifyresult = lerr;
-          msnprintf(error_buffer, sizeof(error_buffer),
-                    "SSL certificate problem: %s",
-                    X509_verify_cert_error_string(lerr));
+          failf(data, "SSL certificate problem: %s",
+                X509_verify_cert_error_string(lerr));
         }
-        else {
+        else
           failf(data, "%s", "SSL certificate verification failed");
-          return result;
-        }
       }
 #if defined(SSL_R_TLSV13_ALERT_CERTIFICATE_REQUIRED)
       /* SSL_R_TLSV13_ALERT_CERTIFICATE_REQUIRED is only available on
@@ -4278,7 +4267,6 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
         failf(data, OSSL_PACKAGE " SSL_connect: %s in connection to %s:%d ",
               extramsg[0] ? extramsg : SSL_ERROR_to_str(detail),
               connssl->peer.hostname, connssl->peer.port);
-        return result;
       }
 
       return result;

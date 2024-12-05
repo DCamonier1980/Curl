@@ -52,7 +52,7 @@ env:
   # renovate: datasource=github-tags depName=ngtcp2/nghttp3 versioning=semver registryUrl=https://github.com
   nghttp3-version: 1.6.0
   # renovate: datasource=github-tags depName=ngtcp2/ngtcp2 versioning=semver registryUrl=https://github.com
-  ngtcp2-version: 1.8.1
+  ngtcp2-version: 1.9.1
   # renovate: datasource=github-tags depName=nghttp2/nghttp2 versioning=semver registryUrl=https://github.com
   nghttp2-version: 1.64.0
   # renovate: datasource=github-tags depName=cloudflare/quiche versioning=semver registryUrl=https://github.com
@@ -283,7 +283,7 @@ jobs:
               --with-ngtcp2=$HOME/ngtcp2/build --enable-warnings --enable-werror --enable-debug
               --with-test-nghttpx="$HOME/nghttp2/build/bin/nghttpx"
               --with-wolfssl=$HOME/wolfssl/build
-              --enable-httpsrr --enable-ech
+              --enable-ech
 
           - name: wolfssl
             PKG_CONFIG_PATH: '$HOME/wolfssl/build/lib/pkgconfig:$HOME/nghttp3/build/lib/pkgconfig:$HOME/ngtcp2/build/lib/pkgconfig:$HOME/nghttp2/build/lib/pkgconfig'
@@ -291,7 +291,7 @@ jobs:
               -DCURL_USE_WOLFSSL=ON -DUSE_NGTCP2=ON -DENABLE_DEBUG=ON
               -DTEST_NGHTTPX="$HOME/nghttp2/build/bin/nghttpx"
               -DHTTPD_NGHTTPX="$HOME/nghttp2/build/bin/nghttpx"
-              -DUSE_HTTPSRR=ON -DUSE_ECH=ON
+              -DUSE_ECH=ON
 
           - name: openssl-quic
             PKG_CONFIG_PATH: '$HOME/openssl/build/lib64/pkgconfig'

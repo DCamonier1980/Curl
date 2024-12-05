@@ -290,6 +290,14 @@
 #  define CURL_DISABLE_HTTP_AUTH 1
 #endif
 
+/*
+ * ECH requires HTTPSRR.
+ */
+
+#if defined(USE_ECH) && !defined(USE_HTTPSRR)
+#  define USE_HTTPSRR
+#endif
+
 /* ================================================================ */
 /* No system header file shall be included in this file before this */
 /* point.                                                           */
@@ -455,6 +463,12 @@
 
 #ifndef STDC_HEADERS /* no standard C headers! */
 #include <curl/stdcheaders.h>
+#endif
+
+#ifdef _WIN32
+#define Curl_getpid() GetCurrentProcessId()
+#else
+#define Curl_getpid() getpid()
 #endif
 
 /*
