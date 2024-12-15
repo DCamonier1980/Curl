@@ -63,11 +63,15 @@ additional *setsockopt(2)* calls can of course be done on the socket at
 the user's discretion. A *CURL_SOCKET_BAD* return value from the callback
 function signals an unrecoverable error to libcurl and it returns
 *CURLE_COULDNT_CONNECT* from the function that triggered this callback.
-This return code can be used for IP address block listing.
 
 If you want to pass in a socket with an already established connection, pass
 the socket back with this callback and then use
 CURLOPT_SOCKOPTFUNCTION(3) to signal that it already is connected.
+
+Returning *CURL_SOCKET_BAD* can be used for IP address blocking, which curl
+does not support natively. You can retrieve the IP by casting *address-\>addr*
+to `sockaddr_in` if *address-\>family* is `AF_INET`, or to `sockaddr_in6` if
+*address-\>family* is `AF_INET6`. Refer to *examples/block-ip.c*.
 
 # DEFAULT
 
