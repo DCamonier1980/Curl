@@ -57,7 +57,7 @@
 #endif
 
 struct ip {
-  /* The user-provided IP network (use CIDL) or host to filter */
+  /* The user-provided IP network (use CIDR) or host to filter */
   char *str;
   /* IP address family AF_INET (IPv4) or AF_INET6 (IPv6) */
   int family;
@@ -87,7 +87,7 @@ struct connection_filter {
   int verbose;
 };
 
-struct ip *ip_list_append(struct ip *list, const char *data)
+static struct ip *ip_list_append(struct ip *list, const char *data)
 {
   struct ip *ip, *last;
   char *cidr;
@@ -153,7 +153,7 @@ struct ip *ip_list_append(struct ip *list, const char *data)
   return list;
 }
 
-void ip_list_free_all(struct ip *list)
+static void ip_list_free_all(struct ip *list)
 {
   struct ip *next;
   while(list) {
@@ -164,7 +164,7 @@ void ip_list_free_all(struct ip *list)
   }
 }
 
-void free_connection_filter(struct connection_filter *filter)
+static void free_connection_filter(struct connection_filter *filter)
 {
   if(filter) {
     ip_list_free_all(filter->list);
@@ -172,7 +172,7 @@ void free_connection_filter(struct connection_filter *filter)
   }
 }
 
-int ip_match(struct ip *ip, void *netaddr)
+static int ip_match(struct ip *ip, void *netaddr)
 {
   int bytes, tailbits;
   const unsigned char *x, *y;
@@ -204,10 +204,10 @@ static curl_socket_t opensocket(void *clientp,
     void *cinaddr = NULL;
 
     if(address->family == AF_INET)
-      cinaddr = &((struct sockaddr_in *)&address->addr)->sin_addr;
+      cinaddr = &((struct sockaddr_in *)(void *)&address->addr)->sin_addr;
 #ifdef AF_INET6
     else if(address->family == AF_INET6)
-      cinaddr = &((struct sockaddr_in6 *)&address->addr)->sin6_addr;
+      cinaddr = &((struct sockaddr_in6 *)(void *)&address->addr)->sin6_addr;
 #endif
 
     if(cinaddr) {
