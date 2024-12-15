@@ -187,7 +187,7 @@ int ip_match(struct ip *ip, void *netaddr)
 
   tailbits = ip->maskbits % 8;
   if(tailbits) {
-    unsigned char tailmask = (0xFF << (8 - tailbits)) & 0xFF;
+    unsigned char tailmask = (unsigned char)((0xFF << (8 - tailbits)) & 0xFF);
     if((*x & tailmask) != (*y & tailmask))
       return FALSE;
   }
@@ -243,7 +243,7 @@ static curl_socket_t opensocket(void *clientp,
   return socket(address->family, address->socktype, address->protocol);
 }
 
-int main()
+int main(void)
 {
   CURL *curl;
   CURLcode res;
