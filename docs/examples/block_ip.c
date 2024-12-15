@@ -30,8 +30,12 @@
  */
 
 #ifdef _WIN32
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
+#ifndef _CRT_NONSTDC_NO_DEPRECATE
 #define _CRT_NONSTDC_NO_DEPRECATE
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -44,6 +48,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <memory.h>
 
 #include <curl/curl.h>
@@ -200,7 +205,7 @@ static curl_socket_t opensocket(void *clientp,
                                 struct curl_sockaddr *address)
 {
   /* filter the address */
-  if(address && purpose == CURLSOCKTYPE_IPCXN) {
+  if(purpose == CURLSOCKTYPE_IPCXN) {
     void *cinaddr = NULL;
 
     if(address->family == AF_INET)
