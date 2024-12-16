@@ -93,6 +93,12 @@ struct connection_filter {
   struct ip *list;
   enum connection_filter_t type;
   int verbose;
+#ifdef AF_INET6
+  /* If the address being filtered is an IPv4-mapped IPv6 address then it is
+   * checked against IPv4 list entries as well, unless ipv6_v6only is set TRUE.
+   */
+  int ipv6_v6only;
+#endif
 };
 
 static struct ip *ip_list_append(struct ip *list, const char *data)
@@ -203,6 +209,26 @@ static int ip_match(struct ip *ip, void *netaddr)
   return TRUE;
 }
 
+#ifdef AF_INET6
+static int is_ipv4_mapped_ipv6_address(int family, void *netaddr)
+{
+  if(family == AF_INET6) {
+    int i;
+    unsigned char *x = (unsigned char *)netaddr;
+    for(i = 0; i < 12; ++i) {
+      if(x[i])
+        break;
+    }
+    /* support formats ::x.x.x.x (deprecated) and ::ffff:x.x.x.x */
+    if((i == 12 && (x[i] || x[i + 1] || x[i + 2] || x[i + 3])) ||
+       (i == 10 && (x[i] == 0xFF && x[i + 1] == 0xFF)))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+#endif /* AF_INET6 */
+
 static curl_socket_t opensocket(void *clientp,
                                 curlsocktype purpose,
                                 struct curl_sockaddr *address)
@@ -221,10 +247,19 @@ static curl_socket_t opensocket(void *clientp,
     if(cinaddr) {
       struct ip *ip;
       struct connection_filter *filter = (struct connection_filter *)clientp;
+#ifdef AF_INET6
+      int mapped = !filter->ipv6_v6only &&
+        is_ipv4_mapped_ipv6_address(address->family, cinaddr);
+#endif
 
       for(ip = filter->list; ip; ip = ip->next) {
         if(ip->family == address->family && ip_match(ip, cinaddr))
           break;
+#ifdef AF_INET6
+        if(ip->family == AF_INET && address->family == AF_INET6 &&
+           mapped && ip_match(ip, (unsigned char *)cinaddr + 12))
+          break;
+#endif
       }
 
       if(ip && filter->type == CONNECTION_FILTER_BLACKLIST) {
@@ -255,7 +290,6 @@ int main(void)
 {
   CURL *curl;
   CURLcode res;
-  int verbose = FALSE;
   struct connection_filter *filter;
 
   filter = (struct connection_filter *)calloc(1, sizeof(*filter));
@@ -287,15 +321,9 @@ int main(void)
   curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, opensocket);
   curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, filter);
 
-  /* Allow insecure connections (not recommended) */
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-
-  verbose = TRUE;
-  if(verbose) {
-    filter->verbose = TRUE;
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-  }
+  /* Verbose mode */
+  filter->verbose = TRUE;
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
   /* Perform the request */
   res = curl_easy_perform(curl);
