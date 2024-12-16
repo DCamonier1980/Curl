@@ -36,6 +36,9 @@
 #ifndef _CRT_NONSTDC_NO_DEPRECATE
 #define _CRT_NONSTDC_NO_DEPRECATE
 #endif
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -62,7 +65,7 @@
 #endif
 
 struct ip {
-  /* The user-provided IP network (use CIDR) or host to filter */
+  /* The user-provided IP address or network (use CIDR) to filter */
   char *str;
   /* IP address family AF_INET (IPv4) or AF_INET6 (IPv6) */
   int family;
