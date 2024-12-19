@@ -29,6 +29,11 @@
  * filter IP addresses.
  */
 
+#ifdef __AMIGA__
+#include <stdio.h>
+int main(void) { printf("amigaos isn't supported.\n"); return 1; }
+#else
+
 #ifdef _WIN32
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
@@ -343,3 +348,4 @@ int main(void)
 
   return 0;
 }
+#endif
