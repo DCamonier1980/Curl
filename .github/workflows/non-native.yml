@@ -332,7 +332,7 @@ jobs:
         run: sudo apt-get --quiet 2 --option Dpkg::Use-Pty=0 install libfl2 ${{ matrix.build == 'cmake' && 'ninja-build' || '' }}
 
       - name: 'cache compiler (djgpp)'
-        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         id: cache-compiler
         with:
           path: ~/djgpp
